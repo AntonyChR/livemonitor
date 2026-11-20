@@ -1,0 +1,10 @@
+{
+  "name": "liverecorder",
+  "identifier": "liverecorder",
+  "version": "0.1.0",
+  "main": "./cmd/recorder",
+  "out": "bin",
+  "linux": {
+    "webview": false
+  }
+}
