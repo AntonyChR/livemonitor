@@ -5,6 +5,11 @@
   "main": "./cmd/recorder",
   "out": "bin",
   "linux": {
-    "webview": false
+    "webview": false,
+    "depends": {
+      "deb": ["libayatana-appindicator3-1"],
+      "rpm": ["libayatana-appindicator-gtk3"],
+      "arch": ["libayatana-appindicator"]
+    }
   }
 }

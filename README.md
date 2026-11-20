@@ -9,6 +9,7 @@ Backend robusto y concurrente en Go para el monitoreo y grabación automática d
 - **Sistema Operativo**: Linux (x86_64 o ARM64).
 - **Go**: Versión 1.27.3 o superior.
 - **GTK 3**: necesario para la interfaz gráfica nativa (`libgtk-3`).
+- **libayatana-appindicator3**: necesario para el icono de la bandeja del sistema.
 - **Herramientas en `PATH`**:
   - `ffmpeg` (versión 4.x o superior con soporte MP4).
   - `streamlink` (versión 5.x o superior con plugin Douyin).
@@ -53,7 +54,8 @@ Ejemplo:
 {
   "output_directory": "/home/usuario/solid/videos",
   "quality": "sd1",
-  "user_list_file": "/home/usuario/user_list.txt"
+  "user_list_file": "/home/usuario/user_list.txt",
+  "minimize_to_tray": false
 }
 ```
 
@@ -94,11 +96,13 @@ Para ejecutar sin interfaz, igual que el backend original:
 ./bin/recorder -mode cli -users ./user_list.txt
 ```
 
+Al marcar «Minimizar al cerrar», cerrar la ventana oculta la aplicación en la bandeja del sistema; desde su menú se puede volver a abrir o cerrar definitivamente.
+
 En ambos modos se buscará el archivo de usuarios en la ruta indicada o en `~/user_list.txt`, se usará una pausa de 120 segundos entre rondas y las grabaciones se guardarán en `~/solid/videos`. La carpeta, la calidad y el archivo de usuarios se recuerdan en `settings.json`.
 
 La ventana de la UI muestra:
 - **Usuarios**: alias, estado de directo, estado de grabación con temporizador `hh:mm:ss`, grabación automática y acciones de iniciar/detener.
-- **Configuración**: carpeta de grabaciones, archivo de usuarios y calidad por defecto, con sus selectores correspondientes.
+- **Configuración**: carpeta de grabaciones, archivo de usuarios, calidad por defecto y opción «Minimizar al cerrar», con sus selectores correspondientes.
 - **Barra inferior**: número de usuarios, grabaciones activas, usuarios en directo y acceso a la carpeta de grabaciones.
 
 ### Argumentos posicionales (compatibilidad con la versión TypeScript):
