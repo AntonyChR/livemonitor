@@ -430,6 +430,15 @@ func (a *App) settingsTab(c *ui.Context, t *ui.Theme) {
 						ui.Textf(c, "Calidad actual: %s", a.settings.Quality).FontSize(12).TextColor(t.TextMuted)
 					})
 				})
+
+			a.section(c, t, "Ventana",
+				"Comportamiento al cerrar la ventana principal.", func() {
+					ui.Checkbox(c.Key("minimize-to-tray"), &a.minimizeToTray, "Minimizar al cerrar").
+						Disabled(a.savingSettings).
+						OnChange(a.saveMinimizeToTray)
+					ui.Text(c, "Si está marcada, la aplicación sigue ejecutándose en la bandeja del sistema. Desde allí puede abrirse de nuevo o cerrarse definitivamente.").
+						FontSize(12).TextColor(t.TextMuted)
+				})
 		})
 	})
 }

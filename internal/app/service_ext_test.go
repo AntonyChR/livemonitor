@@ -80,6 +80,7 @@ func TestApplicationService_UpdateSettings(t *testing.T) {
 	next.OutputDirectory = newOutput
 	next.Quality = "best"
 	next.DefaultUserListFile = userFile2
+	next.MinimizeToTray = true
 
 	if err := svc.UpdateSettings(next); err != nil {
 		t.Fatalf("UpdateSettings failed: %v", err)
@@ -91,6 +92,9 @@ func TestApplicationService_UpdateSettings(t *testing.T) {
 	}
 	if got.DefaultUserListFile != userFile2 {
 		t.Errorf("user list path = %q, want %q", got.DefaultUserListFile, userFile2)
+	}
+	if !got.MinimizeToTray {
+		t.Error("minimize to tray was not applied")
 	}
 	if _, err := os.Stat(newOutput); err != nil {
 		t.Errorf("output directory was not created: %v", err)
@@ -107,7 +111,8 @@ func TestApplicationService_UpdateSettings(t *testing.T) {
 	if !exists {
 		t.Fatal("settings file was not created")
 	}
-	if loaded.OutputDirectory != newOutput || loaded.Quality != "best" || loaded.DefaultUserListFile != userFile2 {
+	if loaded.OutputDirectory != newOutput || loaded.Quality != "best" ||
+		loaded.DefaultUserListFile != userFile2 || !loaded.MinimizeToTray {
 		t.Errorf("persisted settings = %+v", loaded)
 	}
 

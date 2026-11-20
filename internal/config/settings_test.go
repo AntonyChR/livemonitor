@@ -23,6 +23,9 @@ func TestLoadSettings_MissingUsesDefaults(t *testing.T) {
 	if settings.DefaultUserListFile != filepath.Join(mustHome(t), "user_list.txt") {
 		t.Errorf("default user list = %q", settings.DefaultUserListFile)
 	}
+	if settings.MinimizeToTray {
+		t.Error("minimize to tray should default to false")
+	}
 }
 
 func TestSaveAndLoadSettings(t *testing.T) {
@@ -31,6 +34,7 @@ func TestSaveAndLoadSettings(t *testing.T) {
 	settings.OutputDirectory = "/tmp/videos"
 	settings.Quality = "best"
 	settings.DefaultUserListFile = "/tmp/users.txt"
+	settings.MinimizeToTray = true
 
 	if err := SaveSettings(path, settings); err != nil {
 		t.Fatalf("SaveSettings failed: %v", err)
@@ -41,7 +45,7 @@ func TestSaveAndLoadSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(data)
-	for _, want := range []string{`"output_directory"`, `"quality"`, `"user_list_file"`, "/tmp/videos", "best", "/tmp/users.txt"} {
+	for _, want := range []string{`"output_directory"`, `"quality"`, `"user_list_file"`, `"minimize_to_tray"`, "/tmp/videos", "best", "/tmp/users.txt", "true"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("settings JSON does not contain %q:\n%s", want, text)
 		}
@@ -56,7 +60,8 @@ func TestSaveAndLoadSettings(t *testing.T) {
 	}
 	if loaded.OutputDirectory != settings.OutputDirectory ||
 		loaded.Quality != settings.Quality ||
-		loaded.DefaultUserListFile != settings.DefaultUserListFile {
+		loaded.DefaultUserListFile != settings.DefaultUserListFile ||
+		loaded.MinimizeToTray != settings.MinimizeToTray {
 		t.Errorf("loaded settings = %+v", loaded)
 	}
 }

@@ -20,6 +20,7 @@ type Settings struct {
 	Quality                        string        `json:"quality"`
 	DefaultUserListFile            string        `json:"default_user_list_file"`
 	SettingsFile                   string        `json:"-"`
+	MinimizeToTray                 bool          `json:"minimize_to_tray"`
 	RequestTimeout                 time.Duration `json:"request_timeout"`
 	NotificationTimeout            time.Duration `json:"notification_timeout"`
 	StartupTimeout                 time.Duration `json:"startup_timeout"`

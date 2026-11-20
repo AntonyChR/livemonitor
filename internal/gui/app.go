@@ -17,9 +17,11 @@ import (
 // App is the state of the native window. It lives for the whole session and
 // is read by the view on the main thread.
 type App struct {
-	service app.Service
-	win     *mygo.Window
-	theme   *ui.Theme
+	service  app.Service
+	win      *mygo.Window
+	theme    *ui.Theme
+	tray     *mygo.Tray
+	quitting bool
 
 	status   domain.GlobalStatus
 	settings config.Settings
@@ -38,6 +40,7 @@ type App struct {
 
 	qualityDraft   string
 	userListDraft  string
+	minimizeToTray bool
 	savingSettings bool
 
 	notice    string
@@ -62,7 +65,12 @@ func Run(ctx context.Context, service app.Service) error {
 			BackgroundColor: "#000000",
 			Content:         ui.View(a.view),
 		})
+		a.win.OnClose(a.handleWindowClose)
 		go a.pump(ctx, events)
+	})
+
+	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
+		a.quitting = true
 	})
 
 	// Closing the window is the normal exit path; a signal quits the same way.
@@ -86,6 +94,7 @@ func newApp(service app.Service, snapshot domain.GlobalStatus) *App {
 		settings:         settings,
 		qualityDraft:     settings.Quality,
 		userListDraft:    settings.DefaultUserListFile,
+		minimizeToTray:   settings.MinimizeToTray,
 		pendingRecording: make(map[string]domain.RecordingState),
 		pendingAuto:      make(map[string]bool),
 	}
@@ -303,6 +312,19 @@ func (a *App) chooseUserListFile() {
 	a.saveUserListPath()
 }
 
+func (a *App) saveMinimizeToTray() {
+	if a.savingSettings {
+		a.minimizeToTray = a.settings.MinimizeToTray
+		return
+	}
+	if a.minimizeToTray == a.settings.MinimizeToTray {
+		return
+	}
+	next := a.settings
+	next.MinimizeToTray = a.minimizeToTray
+	a.updateSettings(next, "Minimizar al cerrar actualizado.")
+}
+
 func (a *App) chooseOutputDirectory() {
 	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 		Parent:      a.win,
@@ -334,12 +356,14 @@ func (a *App) updateSettings(next config.Settings, success string) {
 		a.win.Update(func() {
 			a.savingSettings = false
 			if err != nil {
+				a.minimizeToTray = a.settings.MinimizeToTray
 				a.setNotice("No se pudo actualizar la configuración: "+err.Error(), true)
 				return
 			}
 			a.settings = applied
 			a.qualityDraft = applied.Quality
 			a.userListDraft = applied.DefaultUserListFile
+			a.minimizeToTray = applied.MinimizeToTray
 			if success != "" {
 				a.setNotice(success, false)
 			}

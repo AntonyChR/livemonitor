@@ -15,6 +15,7 @@ type settingsFile struct {
 	OutputDirectory string `json:"output_directory"`
 	Quality         string `json:"quality"`
 	UserListFile    string `json:"user_list_file"`
+	MinimizeToTray  bool   `json:"minimize_to_tray"`
 }
 
 // DefaultSettingsPath returns the JSON file where the application keeps its
@@ -71,6 +72,7 @@ func LoadSettings(path string) (Settings, bool, error) {
 	if value := strings.TrimSpace(stored.UserListFile); value != "" {
 		settings.DefaultUserListFile = ExpandHome(value)
 	}
+	settings.MinimizeToTray = stored.MinimizeToTray
 
 	return settings, true, nil
 }
@@ -83,6 +85,7 @@ func SaveSettings(path string, settings Settings) error {
 		OutputDirectory: settings.OutputDirectory,
 		Quality:         settings.Quality,
 		UserListFile:    settings.DefaultUserListFile,
+		MinimizeToTray:  settings.MinimizeToTray,
 	}, "", "  ")
 	if err != nil {
 		return err

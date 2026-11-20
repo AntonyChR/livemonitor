@@ -159,6 +159,10 @@ func (m *UserMonitor) PollOnce(ctx context.Context) {
 		// A network or timeout error says nothing about the live state: keep
 		// the last known state (and room) instead of reporting offline.
 		m.status.LastQueryError = err.Error()
+		m.status.LiveState = domain.LiveStateOffline
+		m.status.RoomID = ""
+		m.lastRoomID = ""
+	
 
 		curr := m.status
 		m.mu.Unlock()

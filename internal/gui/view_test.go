@@ -45,6 +45,7 @@ func testApp() *App {
 	settings.OutputDirectory = "/tmp/recordings"
 	settings.Quality = "sd1"
 	settings.DefaultUserListFile = "/tmp/users.txt"
+	settings.MinimizeToTray = true
 	status := domain.GlobalStatus{
 		State: domain.BackendStateRunning,
 		Users: []domain.UserStatus{
@@ -109,6 +110,9 @@ func TestSettingsTab(t *testing.T) {
 	}
 	if field, ok := tt.AccessByRole(ui.RoleTextField, "Archivo de usuarios"); !ok || field.Value != "/tmp/users.txt" {
 		t.Errorf("user list field = %+v, found %v", field, ok)
+	}
+	if tray, ok := tt.AccessByRole(ui.RoleCheckBox, "Minimizar al cerrar"); !ok || !tray.Checked {
+		t.Errorf("minimize to tray checkbox = %+v, found %v", tray, ok)
 	}
 }
 
