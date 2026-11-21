@@ -24,14 +24,12 @@ El proyecto usa [MyGo](https://github.com/egoist/mygo) para la UI nativa. Las de
 
 ### Compilación rápida con `make`:
 ```bash
-cd go_version
 make build
 ```
 El ejecutable resultante se genera en `bin/recorder`.
 
 ### Compilación directa con `go`:
 ```bash
-cd go_version
 go build -o bin/recorder ./cmd/recorder
 ```
 
