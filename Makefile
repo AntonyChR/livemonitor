@@ -1,6 +1,6 @@
 .PHONY: all build run test test-race vet clean
 
-BINARY_NAME=bin/recorder
+BINARY_NAME=bin/livemonitor
 
 all: build
 
@@ -9,10 +9,10 @@ build:
 	go build -o $(BINARY_NAME) ./cmd/recorder
 
 install: build
-	cp ./$(BINARY_NAME) ~/apps/monitor2
+	cp ./$(BINARY_NAME) ~/apps/monitor
 
 run: build
-	./$(BINARY_NAME) -users ./bin/user_list.txt
+	./$(BINARY_NAME) -users ./user_list.txt
 
 test:
 	go test -v ./...

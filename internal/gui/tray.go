@@ -45,6 +45,7 @@ func (a *App) showTray() error {
 			{Label: "Abrir", Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.restoreWindow()
 			}},
+			mygo.Separator(),
 			{Label: "Cerrar", Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.quitApp()
 			}},
