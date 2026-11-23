@@ -26,6 +26,8 @@ const (
 	modeCLI = "cli"
 )
 
+var commitHash= ""
+
 func main() {
 	// Configure logging strictly to os.Stderr (stdout reserved for IPC).
 	logger := logging.SetupLogger(os.Stderr, slog.LevelInfo)
@@ -36,6 +38,7 @@ func main() {
 	var outputDirFlag string
 	var qualityFlag string
 	var enableDesktopNotify bool
+	var version bool
 
 	flag.StringVar(&modeFlag, "mode", modeUI, "Modo de ejecución: ui o cli")
 	flag.IntVar(&intervalFlag, "interval", 0, "Pausa en segundos después de cada ronda (por defecto 120)")
@@ -43,8 +46,14 @@ func main() {
 	flag.StringVar(&outputDirFlag, "output", "", "Directorio de salida para los vídeos")
 	flag.StringVar(&qualityFlag, "quality", "", "Calidad de grabación (por defecto 'sd1')")
 	flag.BoolVar(&enableDesktopNotify, "notify", true, "Habilitar notificaciones de escritorio (notify-send)")
+	flag.BoolVar(&version, "version", false, "versión de compilación")
 
 	flag.Parse()
+
+	if version{
+		println("livemonitor commit hash", commitHash)
+		return
+	}
 
 	if modeFlag != modeUI && modeFlag != modeCLI {
 		logger.Error("Modo de ejecución inválido", "mode", modeFlag, "valores", "ui, cli")

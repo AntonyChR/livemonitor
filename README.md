@@ -64,9 +64,9 @@ El backend lee la lista de usuarios en cada ronda de monitoreo. La ruta por defe
 
 ```text
 # id alias grabar
-7513525489341449273 Gwen1 true
-3977409713946135 Gwen2 true
-110404486053507 Gwen3 false
+7513525489341449273 user1 true
+3977409713946135 user2 true
+110404486053507 user3 false
 ```
 
 - Cada línea debe contener exactamente tres campos: `id alias true|false`.
