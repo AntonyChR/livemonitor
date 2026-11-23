@@ -237,7 +237,7 @@ func (m *Manager) StartRecording(userID string) (string, error) {
 // StopRecording terminates an active recording session for a user.
 func (m *Manager) StopRecording(userID string) error {
 	m.mu.RLock()
-	mon, exists := m.monitors[userID]
+	_, exists := m.monitors[userID]
 	m.mu.RUnlock()
 
 	if !exists {
@@ -249,7 +249,10 @@ func (m *Manager) StopRecording(userID string) error {
 		return err
 	}
 
-	mon.SetRecordingState(domain.RecordingStateStopping, "")
+	// The recording session notifies OnRecordingStopping before it tears the
+	// pipeline down, and OnRecordingStopped once it is finalized. Do not set
+	// the state here: the session may already have reported idle, and writing
+	// stopping afterwards would leave the user stuck in "stopping".
 	return nil
 }
 

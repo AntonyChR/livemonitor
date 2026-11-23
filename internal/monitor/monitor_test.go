@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -16,11 +17,11 @@ import (
 
 // mockDouyinClient implements douyin.Client for monitor tests.
 type mockDouyinClient struct {
-	mu           sync.Mutex
-	statusMap    map[string]douyin.LiveStatus
-	errorMap     map[string]error
-	liveURLs     map[string]string
-	queryCount   map[string]int
+	mu         sync.Mutex
+	statusMap  map[string]douyin.LiveStatus
+	errorMap   map[string]error
+	liveURLs   map[string]string
+	queryCount map[string]int
 }
 
 func newMockDouyinClient() *mockDouyinClient {
@@ -84,6 +85,72 @@ func (p *mockPipeline) Wait() (recorder.ProcessResult, recorder.ProcessResult) {
 func (p *mockPipeline) Close() error {
 	p.once.Do(func() { close(p.done) })
 	return nil
+}
+
+// stopRacePipeline reports progress and then blocks the orderly stop until
+// the session listener has observed the final stopped state.
+type stopRacePipeline struct {
+	stopOnce  sync.Once
+	stopped   chan struct{}
+	stopAsked chan struct{}
+}
+
+func newStopRacePipeline() *stopRacePipeline {
+	return &stopRacePipeline{
+		stopped:   make(chan struct{}),
+		stopAsked: make(chan struct{}),
+	}
+}
+
+func (p *stopRacePipeline) Producer() recorder.ProcessHandle { return nil }
+func (p *stopRacePipeline) Consumer() recorder.ProcessHandle { return nil }
+func (p *stopRacePipeline) ProgressReader() io.Reader {
+	return strings.NewReader("out_time_us=1000000\n")
+}
+func (p *stopRacePipeline) StopOrderly(prodTimeout, f, t, k time.Duration) error {
+	p.stopOnce.Do(func() { close(p.stopAsked) })
+	<-p.stopped
+	return nil
+}
+func (p *stopRacePipeline) Wait() (recorder.ProcessResult, recorder.ProcessResult) {
+	<-p.stopAsked
+	return recorder.ProcessResult{}, recorder.ProcessResult{}
+}
+func (p *stopRacePipeline) Close() error { return nil }
+
+type stopRaceRunner struct {
+	pipelines chan *stopRacePipeline
+}
+
+func newStopRaceRunner() *stopRaceRunner {
+	return &stopRaceRunner{pipelines: make(chan *stopRacePipeline, 1)}
+}
+
+func (r *stopRaceRunner) StartPipeline(prodArgs, consArgs []string) (recorder.ProcessPipeline, error) {
+	p := newStopRacePipeline()
+	r.pipelines <- p
+	return p, nil
+}
+
+type recordingStateListener struct {
+	manager   *Manager
+	finalized chan struct{}
+	once      sync.Once
+}
+
+func (l *recordingStateListener) OnRecordingStarted(info domain.RecordingSessionInfo) {
+	l.manager.UpdateRecordingState(info.UserID, domain.RecordingStateRecording, info.SessionID)
+}
+func (l *recordingStateListener) OnRecordingStopping(info domain.RecordingSessionInfo) {
+	l.manager.UpdateRecordingState(info.UserID, domain.RecordingStateStopping, info.SessionID)
+}
+func (l *recordingStateListener) OnRecordingStopped(info domain.RecordingSessionInfo) {
+	l.manager.UpdateRecordingState(info.UserID, domain.RecordingStateIdle, "")
+	l.once.Do(func() { close(l.finalized) })
+}
+func (l *recordingStateListener) OnRecordingFailed(info domain.RecordingSessionInfo, reason string) {
+	l.manager.UpdateRecordingState(info.UserID, domain.RecordingStateFailed, "")
+	l.once.Do(func() { close(l.finalized) })
 }
 
 type mockMonitorEventHandler struct {
@@ -273,6 +340,61 @@ func TestMonitorManager_AutoRecordAndManualStart(t *testing.T) {
 	err = manager.StopRecording("102")
 	if err != nil {
 		t.Fatalf("unexpected error stopping recording: %v", err)
+	}
+}
+
+func TestStopRecordingEndsInIdle(t *testing.T) {
+	opts := config.DefaultSettings()
+	runner := newStopRaceRunner()
+	listener := &recordingStateListener{finalized: make(chan struct{})}
+	recorders := recorder.NewManager(opts, runner, listener)
+	manager := NewManager(newMockDouyinClient(), recorders, time.Second, &mockMonitorEventHandler{})
+	listener.manager = manager
+
+	user := domain.UserConfig{ID: "400", Alias: "StopRace"}
+	manager.SyncUsers([]domain.UserConfig{user})
+
+	session, err := recorders.Start(user, "https://live.douyin.com/test", domain.RecordingOriginManual)
+	if err != nil {
+		t.Fatalf("starting recording: %v", err)
+	}
+	manager.UpdateRecordingState(user.ID, domain.RecordingStateStarting, session.SessionID)
+	pipeline := <-runner.pipelines
+	listener.finalized = pipeline.stopped
+
+	// Wait until progress has been observed, so the session has a start time
+	// and its stop reports "stopped" instead of "failed".
+	deadline := time.Now().Add(time.Second)
+	for {
+		status, err := manager.GetUserStatus(user.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if status.RecordingState == domain.RecordingStateRecording {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("recording did not start")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	if err := manager.StopRecording(user.ID); err != nil {
+		t.Fatalf("stopping recording: %v", err)
+	}
+
+	select {
+	case <-listener.finalized:
+	default:
+		t.Fatal("recording did not finalize before StopRecording returned")
+	}
+
+	status, err := manager.GetUserStatus(user.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.RecordingState != domain.RecordingStateIdle {
+		t.Errorf("recording state after stop = %q, want idle", status.RecordingState)
 	}
 }
 

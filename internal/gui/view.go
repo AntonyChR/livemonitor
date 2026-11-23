@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/egoist/mygo/ui"
+	ui "github.com/egoist/mygo/ui"
 
-	"live-recorder/internal/domain"
+	domain "live-recorder/internal/domain"
 )
 
 const (
