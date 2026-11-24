@@ -2,6 +2,7 @@ package gui
 
 import (
 	"context"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -38,10 +39,12 @@ type App struct {
 	pendingRecording map[string]domain.RecordingState
 	pendingAuto      map[string]bool
 
-	qualityDraft   string
-	userListDraft  string
-	minimizeToTray bool
-	savingSettings bool
+	qualityDraft    string
+	userListDraft   string
+	retryCountDraft float64
+	retryDelayDraft float64
+	minimizeToTray  bool
+	savingSettings  bool
 
 	notice    string
 	noticeErr bool
@@ -94,6 +97,8 @@ func newApp(service app.Service, snapshot domain.GlobalStatus) *App {
 		settings:         settings,
 		qualityDraft:     settings.Quality,
 		userListDraft:    settings.DefaultUserListFile,
+		retryCountDraft:  float64(settings.RecordingRetryCount),
+		retryDelayDraft:  float64(settings.RecordingRetryDelaySeconds),
 		minimizeToTray:   settings.MinimizeToTray,
 		pendingRecording: make(map[string]domain.RecordingState),
 		pendingAuto:      make(map[string]bool),
@@ -325,6 +330,22 @@ func (a *App) saveMinimizeToTray() {
 	a.updateSettings(next, "Minimizar al cerrar actualizado.")
 }
 
+func (a *App) saveRetrySettings() {
+	count := int(math.Round(a.retryCountDraft))
+	delay := int(math.Round(a.retryDelayDraft))
+	if count < 0 || delay < 0 {
+		a.setNotice("Los reintentos y el tiempo entre ellos no pueden ser negativos.", true)
+		return
+	}
+	if count == a.settings.RecordingRetryCount && delay == a.settings.RecordingRetryDelaySeconds {
+		return
+	}
+	next := a.settings
+	next.RecordingRetryCount = count
+	next.RecordingRetryDelaySeconds = delay
+	a.updateSettings(next, "Reintentos de grabación actualizados.")
+}
+
 func (a *App) chooseOutputDirectory() {
 	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 		Parent:      a.win,
@@ -357,12 +378,16 @@ func (a *App) updateSettings(next config.Settings, success string) {
 			a.savingSettings = false
 			if err != nil {
 				a.minimizeToTray = a.settings.MinimizeToTray
+				a.retryCountDraft = float64(a.settings.RecordingRetryCount)
+				a.retryDelayDraft = float64(a.settings.RecordingRetryDelaySeconds)
 				a.setNotice("No se pudo actualizar la configuración: "+err.Error(), true)
 				return
 			}
 			a.settings = applied
 			a.qualityDraft = applied.Quality
 			a.userListDraft = applied.DefaultUserListFile
+			a.retryCountDraft = float64(applied.RecordingRetryCount)
+			a.retryDelayDraft = float64(applied.RecordingRetryDelaySeconds)
 			a.minimizeToTray = applied.MinimizeToTray
 			if success != "" {
 				a.setNotice(success, false)

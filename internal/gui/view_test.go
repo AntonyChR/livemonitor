@@ -46,6 +46,8 @@ func testApp() *App {
 	settings.Quality = "sd1"
 	settings.DefaultUserListFile = "/tmp/users.txt"
 	settings.MinimizeToTray = true
+	settings.RecordingRetryCount = 4
+	settings.RecordingRetryDelaySeconds = 7
 	status := domain.GlobalStatus{
 		State: domain.BackendStateRunning,
 		Users: []domain.UserStatus{
@@ -103,7 +105,10 @@ func TestSettingsTab(t *testing.T) {
 	if err := tt.Click("Configuración"); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"/tmp/recordings", "Archivo de usuarios", "Calidad por defecto", "sd1"} {
+	for _, want := range []string{
+		"/tmp/recordings", "Archivo de usuarios", "Calidad por defecto", "Reintentos de grabación",
+		"Número de reintentos", "Segundos entre reintentos", "sd1",
+	} {
 		if !tt.HasText(want) {
 			t.Errorf("settings tab does not show %q; texts: %q", want, tt.Texts())
 		}

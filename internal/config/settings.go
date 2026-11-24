@@ -12,10 +12,12 @@ import (
 // settingsFile is the on-disk JSON representation of the user-editable
 // application configuration.
 type settingsFile struct {
-	OutputDirectory string `json:"output_directory"`
-	Quality         string `json:"quality"`
-	UserListFile    string `json:"user_list_file"`
-	MinimizeToTray  bool   `json:"minimize_to_tray"`
+	OutputDirectory            string `json:"output_directory"`
+	Quality                    string `json:"quality"`
+	UserListFile               string `json:"user_list_file"`
+	MinimizeToTray             bool   `json:"minimize_to_tray"`
+	RecordingRetryCount        *int   `json:"recording_retry_count,omitempty"`
+	RecordingRetryDelaySeconds *int   `json:"recording_retry_delay_seconds,omitempty"`
 }
 
 // DefaultSettingsPath returns the JSON file where the application keeps its
@@ -73,6 +75,12 @@ func LoadSettings(path string) (Settings, bool, error) {
 		settings.DefaultUserListFile = ExpandHome(value)
 	}
 	settings.MinimizeToTray = stored.MinimizeToTray
+	if stored.RecordingRetryCount != nil && *stored.RecordingRetryCount >= 0 {
+		settings.RecordingRetryCount = *stored.RecordingRetryCount
+	}
+	if stored.RecordingRetryDelaySeconds != nil && *stored.RecordingRetryDelaySeconds >= 0 {
+		settings.RecordingRetryDelaySeconds = *stored.RecordingRetryDelaySeconds
+	}
 
 	return settings, true, nil
 }
@@ -81,11 +89,15 @@ func LoadSettings(path string) (Settings, bool, error) {
 func SaveSettings(path string, settings Settings) error {
 	path = ExpandHome(path)
 
+	retryCount := settings.RecordingRetryCount
+	retryDelay := settings.RecordingRetryDelaySeconds
 	data, err := json.MarshalIndent(settingsFile{
-		OutputDirectory: settings.OutputDirectory,
-		Quality:         settings.Quality,
-		UserListFile:    settings.DefaultUserListFile,
-		MinimizeToTray:  settings.MinimizeToTray,
+		OutputDirectory:            settings.OutputDirectory,
+		Quality:                    settings.Quality,
+		UserListFile:               settings.DefaultUserListFile,
+		MinimizeToTray:             settings.MinimizeToTray,
+		RecordingRetryCount:        &retryCount,
+		RecordingRetryDelaySeconds: &retryDelay,
 	}, "", "  ")
 	if err != nil {
 		return err

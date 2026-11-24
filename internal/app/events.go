@@ -83,7 +83,11 @@ type MonitorErrorEvent struct {
 	BaseEvent
 	UserID string `json:"user_id"`
 	Alias  string `json:"alias"`
-	Error  string `json:"error"`
+	ErrorMsg  string `json:"error"`
+}
+
+func (m MonitorErrorEvent) Error() string {
+	return m.ErrorMsg
 }
 
 // BackendStatusChangedEvent is emitted when the backend transitions between lifecycle states.

@@ -29,6 +29,9 @@ type Manager struct {
 	recordings    *recorder.Manager
 	interval      time.Duration
 	eventHandler  MonitorEventHandler
+	retryCount    int
+	retryDelay    time.Duration
+	attempts      map[string]*recordingAttempt
 	ctx           context.Context
 	cancel        context.CancelFunc
 	closing       bool
@@ -49,6 +52,9 @@ func NewManager(
 		recordings:    recordings,
 		interval:      interval,
 		eventHandler:  eventHandler,
+		retryCount:    defaultRecordingRetryCount,
+		retryDelay:    defaultRecordingRetryDelay,
+		attempts:      make(map[string]*recordingAttempt),
 	}
 }
 
@@ -70,6 +76,12 @@ func (m *Manager) Stop() {
 	m.closing = true
 	if m.cancel != nil {
 		m.cancel()
+	}
+	for userID, attempt := range m.attempts {
+		if attempt.cancel != nil {
+			attempt.cancel()
+		}
+		delete(m.attempts, userID)
 	}
 	var mons []*UserMonitor
 	for _, mon := range m.monitors {
@@ -97,6 +109,7 @@ func (m *Manager) SyncUsers(userList []domain.UserConfig) {
 	}
 	var updates []userUpdate
 	var monsToStop []*UserMonitor
+	var removedIDs []string
 
 	m.mu.Lock()
 	if m.closing {
@@ -138,12 +151,17 @@ func (m *Manager) SyncUsers(userList []domain.UserConfig) {
 	for id, mon := range m.monitors {
 		if _, keep := activeIDs[id]; !keep {
 			monsToStop = append(monsToStop, mon)
+			removedIDs = append(removedIDs, id)
 			delete(m.monitors, id)
 			delete(m.users, id)
 			delete(m.notifiedRooms, id)
 		}
 	}
 	m.mu.Unlock()
+
+	for _, id := range removedIDs {
+		m.cancelAttempt(id)
+	}
 
 	// Apply updates to existing monitors outside of lock to prevent re-entrant deadlock with OnUserStatusChanged
 	for _, upd := range updates {
@@ -199,6 +217,9 @@ func (m *Manager) SetAutoRecord(userID string, enabled bool) error {
 	m.mu.Unlock()
 
 	mon.SetAutoRecord(enabled)
+	if !enabled {
+		m.cancelAutoAttempt(userID)
+	}
 	status := mon.Status()
 
 	// If enabled and user is currently live and not recording, trigger auto recording
@@ -244,6 +265,8 @@ func (m *Manager) StopRecording(userID string) error {
 		return fmt.Errorf("usuario no encontrado: %s", userID)
 	}
 
+	m.cancelAttempt(userID)
+
 	err := m.recordings.Stop(userID)
 	if err != nil {
 		return err
@@ -257,6 +280,15 @@ func (m *Manager) StopRecording(userID string) error {
 }
 
 func (m *Manager) triggerRecording(user domain.UserConfig, roomID string, origin domain.RecordingOrigin) (string, error) {
+	attempt := m.beginAttempt(user.ID, origin)
+	return m.triggerRecordingAttempt(user, roomID, origin, attempt)
+}
+
+func (m *Manager) triggerRecordingAttempt(user domain.UserConfig, roomID string, origin domain.RecordingOrigin, attempt *recordingAttempt) (string, error) {
+	if !m.attemptCurrent(user.ID, attempt) {
+		return "", fmt.Errorf("intento de grabación cancelado para %s (%s)", user.Alias, user.ID)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -268,6 +300,7 @@ func (m *Manager) triggerRecording(user domain.UserConfig, roomID string, origin
 			"room_id", roomID,
 			"error", err,
 		)
+		m.scheduleRetry(user.ID, attempt)
 		return "", fmt.Errorf("error al obtener URL del directo para %s: %w", user.Alias, err)
 	}
 	if liveURL == "" {
@@ -276,7 +309,11 @@ func (m *Manager) triggerRecording(user domain.UserConfig, roomID string, origin
 			"alias", user.Alias,
 			"room_id", roomID,
 		)
+		m.scheduleRetry(user.ID, attempt)
 		return "", fmt.Errorf("no se encontró URL de directo para %s", user.Alias)
+	}
+	if !m.attemptCurrent(user.ID, attempt) {
+		return "", fmt.Errorf("intento de grabación cancelado para %s (%s)", user.Alias, user.ID)
 	}
 
 	session, err := m.recordings.Start(user, liveURL, origin)
@@ -286,7 +323,12 @@ func (m *Manager) triggerRecording(user domain.UserConfig, roomID string, origin
 			"alias", user.Alias,
 			"error", err,
 		)
+		m.scheduleRetry(user.ID, attempt)
 		return "", err
+	}
+	if !m.attemptCurrent(user.ID, attempt) {
+		session.Stop()
+		return "", fmt.Errorf("intento de grabación cancelado para %s (%s)", user.Alias, user.ID)
 	}
 
 	m.mu.RLock()
@@ -306,6 +348,9 @@ func (m *Manager) OnUserStatusChanged(prev domain.UserStatus, curr domain.UserSt
 		m.mu.Lock()
 		delete(m.notifiedRooms, curr.ID)
 		m.mu.Unlock()
+	}
+	if curr.LiveState != domain.LiveStateLive {
+		m.cancelAttempt(curr.ID)
 	}
 	if m.eventHandler != nil {
 		m.eventHandler.OnUserStatusChanged(prev, curr)

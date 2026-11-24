@@ -150,6 +150,7 @@ func (l *recordingStateListener) OnRecordingStopped(info domain.RecordingSession
 }
 func (l *recordingStateListener) OnRecordingFailed(info domain.RecordingSessionInfo, reason string) {
 	l.manager.UpdateRecordingState(info.UserID, domain.RecordingStateFailed, "")
+	l.manager.HandleRecordingFailed(info)
 	l.once.Do(func() { close(l.finalized) })
 }
 
@@ -343,6 +344,28 @@ func TestMonitorManager_AutoRecordAndManualStart(t *testing.T) {
 	}
 }
 
+type flakyRunner struct {
+	mu       sync.Mutex
+	failures int
+	attempts int
+}
+
+func (r *flakyRunner) StartPipeline(prodArgs, consArgs []string) (recorder.ProcessPipeline, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.attempts++
+	if r.attempts <= r.failures {
+		return nil, errors.New("fallo simulado al iniciar el pipeline")
+	}
+	return newMockPipeline(), nil
+}
+
+func (r *flakyRunner) attemptCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.attempts
+}
+
 func TestStopRecordingEndsInIdle(t *testing.T) {
 	opts := config.DefaultSettings()
 	runner := newStopRaceRunner()
@@ -395,6 +418,118 @@ func TestStopRecordingEndsInIdle(t *testing.T) {
 	}
 	if status.RecordingState != domain.RecordingStateIdle {
 		t.Errorf("recording state after stop = %q, want idle", status.RecordingState)
+	}
+}
+
+func TestRecordingRetrySucceeds(t *testing.T) {
+	client := newMockDouyinClient()
+	client.statusMap["500"] = douyin.LiveStatus{Status: douyin.StatusLive, RoomID: "room500"}
+
+	opts := config.DefaultSettings()
+	runner := &flakyRunner{failures: 1}
+	listener := &recordingStateListener{finalized: make(chan struct{})}
+	recorders := recorder.NewManager(opts, runner, listener)
+	manager := NewManager(client, recorders, 20*time.Millisecond, &mockMonitorEventHandler{})
+	listener.manager = manager
+	manager.SetRecordingRetryPolicy(2, 10*time.Millisecond)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	manager.Start(ctx)
+	defer func() {
+		manager.Stop()
+		cancel()
+	}()
+	manager.SyncUsers([]domain.UserConfig{{ID: "500", Alias: "Retry"}})
+
+	deadline := time.Now().Add(time.Second)
+	for {
+		status, err := manager.GetUserStatus("500")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if status.LiveState == domain.LiveStateLive {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("user did not become live")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	if _, err := manager.StartRecording("500"); err != nil {
+		t.Fatalf("unexpected error starting recording: %v", err)
+	}
+
+	deadline = time.Now().Add(time.Second)
+	for runner.attemptCount() < 2 {
+		if time.Now().After(deadline) {
+			t.Fatalf("recording was not retried; attempts=%d", runner.attemptCount())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	deadline = time.Now().Add(time.Second)
+	for !recorders.Has("500") {
+		if time.Now().After(deadline) {
+			t.Fatal("retried recording session was not created")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if got := runner.attemptCount(); got != 2 {
+		t.Errorf("start attempts = %d, want 2", got)
+	}
+	_ = manager.StopRecording("500")
+}
+
+func TestRecordingRetryStopsAfterLimit(t *testing.T) {
+	client := newMockDouyinClient()
+	client.statusMap["501"] = douyin.LiveStatus{Status: douyin.StatusLive, RoomID: "room501"}
+
+	opts := config.DefaultSettings()
+	runner := &flakyRunner{failures: 100}
+	listener := &recordingStateListener{finalized: make(chan struct{})}
+	recorders := recorder.NewManager(opts, runner, listener)
+	manager := NewManager(client, recorders, 20*time.Millisecond, &mockMonitorEventHandler{})
+	listener.manager = manager
+	manager.SetRecordingRetryPolicy(2, 5*time.Millisecond)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	manager.Start(ctx)
+	defer func() {
+		manager.Stop()
+		cancel()
+	}()
+	manager.SyncUsers([]domain.UserConfig{{ID: "501", Alias: "RetryLimit"}})
+
+	deadline := time.Now().Add(time.Second)
+	for {
+		status, err := manager.GetUserStatus("501")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if status.LiveState == domain.LiveStateLive {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("user did not become live")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	if _, err := manager.StartRecording("501"); err != nil {
+		t.Fatalf("unexpected error starting recording: %v", err)
+	}
+
+	deadline = time.Now().Add(time.Second)
+	for runner.attemptCount() < 3 {
+		if time.Now().After(deadline) {
+			t.Fatalf("retries did not run; attempts=%d", runner.attemptCount())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	time.Sleep(50 * time.Millisecond)
+	if got := runner.attemptCount(); got != 3 {
+		t.Errorf("start attempts = %d, want 3 (initial + 2 retries)", got)
 	}
 }
 

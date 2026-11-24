@@ -7,8 +7,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"net"
 	"strconv"
 	"strings"
+	"syscall"
+	"errors"
 	"time"
 )
 
@@ -23,6 +26,14 @@ type douyinClient struct {
 	baseURL    string
 	timeout    time.Duration
 }
+
+
+const (
+	DouyinBasicErr = 1 // invalid user, no data about user
+	DouyinCriticalErr = 2 // tcp conn, invalid url
+)
+
+
 
 // ClientOption configures the Douyin client.
 type ClientOption func(*douyinClient)
@@ -97,7 +108,7 @@ func (c *douyinClient) doRequest(ctx context.Context, endpointURL string) ([]byt
 func ParseLiveStatus(body []byte, userID string) (LiveStatus, error) {
 	var root map[string]any
 	if err := json.Unmarshal(body, &root); err != nil {
-		return LiveStatus{}, fmt.Errorf("respuesta de la API inválida: se esperaba un objeto: %w", err)
+		return LiveStatus{},  fmt.Errorf("respuesta de la API inválida: se esperaba un objeto: %s",err)
 	}
 
 	statusCodeVal, ok := root["status_code"]
@@ -324,4 +335,27 @@ func isAllDigits(s string) bool {
 		}
 	}
 	return true
+}
+
+func isConnectionError(err error) (string, bool){
+	// 1. Verificar errores específicos de red del sistema operativo
+	if errors.Is(err, syscall.ENETUNREACH) || // Red inalcanzable (sin Wi-Fi/datos)
+		errors.Is(err, syscall.EHOSTUNREACH) || // Host inalcanzable
+		errors.Is(err, syscall.ECONNREFUSED) { // Conexión rechazada
+		return "OS error", true
+	}
+
+	// 2. Verificar errores de resolución DNS (común al perder internet)
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) {
+		return "dns error",true
+	}
+
+	// 3. Verificar error general de operación de red (dial / transporte)
+	var opErr *net.OpError
+	if errors.As(err, &opErr) && opErr.Op == "dial" {
+		return "dial net error", true
+	}
+
+	return "", false
 }

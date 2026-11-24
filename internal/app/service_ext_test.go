@@ -81,6 +81,8 @@ func TestApplicationService_UpdateSettings(t *testing.T) {
 	next.Quality = "best"
 	next.DefaultUserListFile = userFile2
 	next.MinimizeToTray = true
+	next.RecordingRetryCount = 7
+	next.RecordingRetryDelaySeconds = 12
 
 	if err := svc.UpdateSettings(next); err != nil {
 		t.Fatalf("UpdateSettings failed: %v", err)
@@ -95,6 +97,10 @@ func TestApplicationService_UpdateSettings(t *testing.T) {
 	}
 	if !got.MinimizeToTray {
 		t.Error("minimize to tray was not applied")
+	}
+	if got.RecordingRetryCount != 7 || got.RecordingRetryDelaySeconds != 12 {
+		t.Errorf("retry settings = %d/%d, want 7/12",
+			got.RecordingRetryCount, got.RecordingRetryDelaySeconds)
 	}
 	if _, err := os.Stat(newOutput); err != nil {
 		t.Errorf("output directory was not created: %v", err)
@@ -112,7 +118,8 @@ func TestApplicationService_UpdateSettings(t *testing.T) {
 		t.Fatal("settings file was not created")
 	}
 	if loaded.OutputDirectory != newOutput || loaded.Quality != "best" ||
-		loaded.DefaultUserListFile != userFile2 || !loaded.MinimizeToTray {
+		loaded.DefaultUserListFile != userFile2 || !loaded.MinimizeToTray ||
+		loaded.RecordingRetryCount != 7 || loaded.RecordingRetryDelaySeconds != 12 {
 		t.Errorf("persisted settings = %+v", loaded)
 	}
 

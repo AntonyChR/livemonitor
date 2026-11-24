@@ -72,6 +72,7 @@ func NewApplicationService(
 
 	// Create MonitorManager with MonitorEventHandler hooked into EventBroker
 	monitors := monitor.NewManager(client, recorders, time.Duration(settings.DefaultCheckLiveStatusInterval)*time.Second, svc)
+	monitors.SetRecordingRetryPolicy(settings.RecordingRetryCount, time.Duration(settings.RecordingRetryDelaySeconds)*time.Second)
 	svc.monitors = monitors
 
 	if len(initialUsers) > 0 {
@@ -328,6 +329,12 @@ func (s *applicationService) UpdateSettings(settings config.Settings) error {
 	if settings.DefaultUserListFile == "" {
 		return errors.New("la ruta del archivo de usuarios no puede estar vacía")
 	}
+	if settings.RecordingRetryCount < 0 {
+		return errors.New("el número de reintentos no puede ser negativo")
+	}
+	if settings.RecordingRetryDelaySeconds < 0 {
+		return errors.New("el tiempo entre reintentos no puede ser negativo")
+	}
 	if err := os.MkdirAll(settings.OutputDirectory, 0755); err != nil {
 		return fmt.Errorf("no se pudo crear la carpeta de grabaciones: %w", err)
 	}
@@ -362,6 +369,7 @@ func (s *applicationService) UpdateSettings(settings config.Settings) error {
 	s.mu.Unlock()
 
 	s.recordings.UpdateSettings(settings)
+	s.monitors.SetRecordingRetryPolicy(settings.RecordingRetryCount, time.Duration(settings.RecordingRetryDelaySeconds)*time.Second)
 	if userListChanged {
 		s.monitors.SyncUsers(users)
 	}
@@ -396,6 +404,7 @@ func (s *applicationService) Summary() string {
 
 func (s *applicationService) OnRecordingStarted(info domain.RecordingSessionInfo) {
 	s.monitors.UpdateRecordingState(info.UserID, domain.RecordingStateRecording, info.SessionID)
+	s.monitors.HandleRecordingConfirmed(info.UserID)
 
 	s.broker.Publish(RecordingStartedEvent{
 		BaseEvent: BaseEvent{
@@ -420,6 +429,7 @@ func (s *applicationService) OnRecordingStopping(info domain.RecordingSessionInf
 
 func (s *applicationService) OnRecordingStopped(info domain.RecordingSessionInfo) {
 	s.monitors.UpdateRecordingState(info.UserID, domain.RecordingStateIdle, "")
+	s.monitors.HandleRecordingEnded(info.UserID)
 
 	s.broker.Publish(RecordingStoppedEvent{
 		BaseEvent: BaseEvent{
@@ -432,6 +442,7 @@ func (s *applicationService) OnRecordingStopped(info domain.RecordingSessionInfo
 
 func (s *applicationService) OnRecordingFailed(info domain.RecordingSessionInfo, reason string) {
 	s.monitors.UpdateRecordingState(info.UserID, domain.RecordingStateFailed, "")
+	s.monitors.HandleRecordingFailed(info)
 
 	s.broker.Publish(RecordingFailedEvent{
 		BaseEvent: BaseEvent{
@@ -466,7 +477,7 @@ func (s *applicationService) OnMonitorError(user domain.UserConfig, err error) {
 		},
 		UserID: user.ID,
 		Alias:  user.Alias,
-		Error:  err.Error(),
+		ErrorMsg:  err.Error(),
 	})
 }
 

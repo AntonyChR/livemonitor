@@ -431,6 +431,31 @@ func (a *App) settingsTab(c *ui.Context, t *ui.Theme) {
 					})
 				})
 
+			a.section(c, t, "Reintentos de grabación",
+				"Si el inicio de una grabación falla, se vuelve a intentar automáticamente. Por defecto: 3 reintentos cada 5 segundos.", func() {
+					ui.Row(c).Gap(16).AlignItems(ui.End).Children(func() {
+						ui.Column(c).Gap(4).Children(func() {
+							ui.Text(c, "Número de reintentos").FontSize(12).TextColor(t.TextMuted)
+							ui.NumberInput(c.Key("retry-count"), &a.retryCountDraft, 0, 100, 1).
+								Label("Número de reintentos").Width(130)
+						})
+						ui.Column(c).Gap(4).Children(func() {
+							ui.Text(c, "Segundos entre reintentos").FontSize(12).TextColor(t.TextMuted)
+							ui.NumberInput(c.Key("retry-delay"), &a.retryDelayDraft, 0, 3600, 1).
+								Label("Segundos entre reintentos").Width(130)
+						})
+						ui.Spacer(c)
+						disabled := a.savingSettings ||
+							(a.retryCountDraft == float64(a.settings.RecordingRetryCount) &&
+								a.retryDelayDraft == float64(a.settings.RecordingRetryDelaySeconds))
+						save := ui.PrimaryButton(c, "Guardar reintentos").Disabled(disabled)
+						if disabled {
+							save.Background(t.Surface).TextColor(t.TextMuted).Border(1, t.Border)
+						}
+						save.OnClick(a.saveRetrySettings)
+					})
+				})
+
 			a.section(c, t, "Ventana",
 				"Comportamiento al cerrar la ventana principal.", func() {
 					ui.Checkbox(c.Key("minimize-to-tray"), &a.minimizeToTray, "Minimizar al cerrar").

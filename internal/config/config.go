@@ -21,6 +21,8 @@ type Settings struct {
 	DefaultUserListFile            string        `json:"default_user_list_file"`
 	SettingsFile                   string        `json:"-"`
 	MinimizeToTray                 bool          `json:"minimize_to_tray"`
+	RecordingRetryCount            int           `json:"recording_retry_count"`
+	RecordingRetryDelaySeconds     int           `json:"recording_retry_delay_seconds"`
 	RequestTimeout                 time.Duration `json:"request_timeout"`
 	NotificationTimeout            time.Duration `json:"notification_timeout"`
 	StartupTimeout                 time.Duration `json:"startup_timeout"`
@@ -45,6 +47,8 @@ func DefaultSettings() Settings {
 		OutputDirectory:                filepath.Join(homeDir, "solid", "videos"),
 		Quality:                        "sd1",
 		DefaultUserListFile:            filepath.Join(homeDir, "user_list.txt"),
+		RecordingRetryCount:            3,
+		RecordingRetryDelaySeconds:     5,
 		RequestTimeout:                 30 * time.Second,
 		NotificationTimeout:            5 * time.Second,
 		StartupTimeout:                 60 * time.Second,

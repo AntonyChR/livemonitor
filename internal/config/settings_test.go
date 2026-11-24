@@ -26,6 +26,10 @@ func TestLoadSettings_MissingUsesDefaults(t *testing.T) {
 	if settings.MinimizeToTray {
 		t.Error("minimize to tray should default to false")
 	}
+	if settings.RecordingRetryCount != 3 || settings.RecordingRetryDelaySeconds != 5 {
+		t.Errorf("retry defaults = %d/%d, want 3/5",
+			settings.RecordingRetryCount, settings.RecordingRetryDelaySeconds)
+	}
 }
 
 func TestSaveAndLoadSettings(t *testing.T) {
@@ -35,6 +39,8 @@ func TestSaveAndLoadSettings(t *testing.T) {
 	settings.Quality = "best"
 	settings.DefaultUserListFile = "/tmp/users.txt"
 	settings.MinimizeToTray = true
+	settings.RecordingRetryCount = 7
+	settings.RecordingRetryDelaySeconds = 12
 
 	if err := SaveSettings(path, settings); err != nil {
 		t.Fatalf("SaveSettings failed: %v", err)
@@ -45,7 +51,7 @@ func TestSaveAndLoadSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(data)
-	for _, want := range []string{`"output_directory"`, `"quality"`, `"user_list_file"`, `"minimize_to_tray"`, "/tmp/videos", "best", "/tmp/users.txt", "true"} {
+	for _, want := range []string{`"output_directory"`, `"quality"`, `"user_list_file"`, `"minimize_to_tray"`, `"recording_retry_count"`, `"recording_retry_delay_seconds"`, "/tmp/videos", "best", "/tmp/users.txt", "true"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("settings JSON does not contain %q:\n%s", want, text)
 		}
@@ -61,7 +67,9 @@ func TestSaveAndLoadSettings(t *testing.T) {
 	if loaded.OutputDirectory != settings.OutputDirectory ||
 		loaded.Quality != settings.Quality ||
 		loaded.DefaultUserListFile != settings.DefaultUserListFile ||
-		loaded.MinimizeToTray != settings.MinimizeToTray {
+		loaded.MinimizeToTray != settings.MinimizeToTray ||
+		loaded.RecordingRetryCount != settings.RecordingRetryCount ||
+		loaded.RecordingRetryDelaySeconds != settings.RecordingRetryDelaySeconds {
 		t.Errorf("loaded settings = %+v", loaded)
 	}
 }

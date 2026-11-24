@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-
 	"live-recorder/internal/app"
 	"live-recorder/internal/domain"
 	"live-recorder/internal/platform/desktop"
@@ -83,10 +82,9 @@ func (l *EventLogger) handle(ev app.Event) {
 			"reason", e.Reason,
 		)
 	case app.MonitorErrorEvent:
-		l.logger.Warn("Error de consulta de monitor",
-			"alias", e.Alias,
-			"error", e.Error,
-		)
+		l.logger.Warn("Error de consulta de monitor crítico",
+		"alias", e.Alias,
+		"error", e.Error())
 	}
 }
 
