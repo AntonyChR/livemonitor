@@ -248,9 +248,9 @@ func (a *App) liveCell(c *ui.Context, t *ui.Theme, user domain.UserStatus) {
 	switch user.LiveState {
 	case domain.LiveStateLive:
 		color = t.Success
-		label = "En directo"
+		label = "Live"
 	case domain.LiveStateOffline:
-		label = "Sin directo"
+		label = "offline"
 	}
 	ui.Row(c).Width(liveColumnWidth).Gap(7).AlignItems(ui.Center).Children(func() {
 		ui.Box(c).Size(8, 8).Background(color)
@@ -361,7 +361,7 @@ func (a *App) footer(c *ui.Context, t *ui.Theme) {
 			if live > 0 {
 				liveColor = t.Success
 			}
-			a.stat(c, t, "En directo", live, liveColor)
+			a.stat(c, t, "Live", live, liveColor)
 			ui.Spacer(c)
 			if ui.Button(c, "Abrir carpeta de grabaciones").Clicked() {
 				a.openOutputDirectory()

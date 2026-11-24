@@ -71,7 +71,7 @@ func TestUsersTab(t *testing.T) {
 	a := testApp()
 	tt := ui.NewTester(a.view, 1024, 600)
 
-	for _, want := range []string{"Gwen1", "Gwen2", "Gwen3", "GRABANDO", "En directo", "Sin directo"} {
+	for _, want := range []string{"Gwen1", "Gwen2", "Gwen3", "GRABANDO", "Live", "offline"} {
 		if !tt.HasText(want) {
 			t.Errorf("users tab does not show %q; texts: %q", want, tt.Texts())
 		}

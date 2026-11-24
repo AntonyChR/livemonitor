@@ -156,8 +156,10 @@ func (m *UserMonitor) PollOnce(ctx context.Context) {
 
 	m.mu.Lock()
 	if err != nil {
+
+		// set default live state: unknown
 		m.status.LastQueryError = err.Error()
-		m.status.LiveState = domain.LiveStateOffline
+		m.status.LiveState = domain.LiveStateUnknown
 		m.status.RoomID = ""
 		m.lastRoomID = ""
 
