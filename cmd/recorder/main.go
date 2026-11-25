@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -11,6 +12,8 @@ import (
 	"path/filepath"
 	"syscall"
 	"time"
+
+	flock "github.com/gofrs/flock"
 
 	app "live-recorder/internal/app"
 	config "live-recorder/internal/config"
@@ -29,8 +32,23 @@ const (
 var commitHash= ""
 
 func main() {
-	// Configure logging strictly to os.Stderr (stdout reserved for IPC).
-	logger := logging.SetupLogger(os.Stderr, slog.LevelInfo)
+	// single instance
+	lockPath := filepath.Join(os.TempDir(), "livemonitor.lock")
+	fileLock := flock.New(lockPath)
+	locked, err := fileLock.TryLock()
+
+	if err != nil {
+		fmt.Printf("Error al verificar el bloqueo: %v\n", err)
+		os.Exit(1)
+	}
+
+	if !locked {
+		fmt.Println("La aplicación ya se está ejecutando en otra instancia.")
+		os.Exit(1)
+	}
+	defer fileLock.Unlock()
+
+	logger := logging.SetupLogger(os.Stdout, slog.LevelInfo)
 
 	var modeFlag string
 	var intervalFlag int
