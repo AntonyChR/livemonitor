@@ -377,7 +377,7 @@ func (a *App) stat(c *ui.Context, t *ui.Theme, label string, value int, color ui
 }
 
 func (a *App) settingsTab(c *ui.Context, t *ui.Theme) {
-	ui.Scroll(c).Grow(1).Children(func() {
+	ui.Scroll(c.Key("settings-scroll")).TrackScroll(&a.settingsScroll).Grow(1).Children(func() {
 		ui.Column(c).FillWidth().Gap(14).Padding(0, 0, 4, 0).Children(func() {
 			ui.Text(c, "CONFIGURACIÓN").FontSize(14).Bold()
 

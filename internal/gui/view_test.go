@@ -146,6 +146,34 @@ func TestSettingsScrollsWithNotice(t *testing.T) {
 	}
 }
 
+func TestSettingsScrollSurvivesNotice(t *testing.T) {
+	a := testApp()
+	tt := ui.NewTester(a.view, 1024, 600)
+
+	if err := tt.Click("Configuración"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Scroll(700, 420, 0, 220)
+	tt.Frame()
+
+	before := a.settingsScroll.Y
+	if before == 0 {
+		t.Fatal("settings content did not scroll")
+	}
+
+	a.notice = "Configuración actualizada."
+	tt.Frame()
+	if got := a.settingsScroll.Y; got != before {
+		t.Errorf("showing the notice moved the scroll from %v to %v", before, got)
+	}
+
+	a.notice = ""
+	tt.Frame()
+	if got := a.settingsScroll.Y; got != before {
+		t.Errorf("closing the notice moved the scroll from %v to %v", before, got)
+	}
+}
+
 func TestFormatClock(t *testing.T) {
 	cases := map[time.Duration]string{
 		0:                "00:00:00",

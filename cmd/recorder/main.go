@@ -50,8 +50,8 @@ func main() {
 
 	flag.Parse()
 
-	if version{
-		println("livemonitor commit hash", commitHash)
+	println("livemonitor - commit hash", commitHash)
+	if version {
 		return
 	}
 

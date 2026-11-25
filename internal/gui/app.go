@@ -27,8 +27,9 @@ type App struct {
 	status   domain.GlobalStatus
 	settings config.Settings
 
-	tab      int
-	userList ui.ListState
+	tab            int
+	userList       ui.ListState
+	settingsScroll ui.ScrollState
 
 	addOpen   bool
 	addAlias  string
